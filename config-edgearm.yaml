@@ -1,0 +1,8 @@
+baud: 115200
+devices: [ "/dev/ttyUSB0" ]
+rate: 100
+
+Motor1PWMPrescaler: 3
+Motor2PWMPrescaler: 3
+
+#Motor1BrakeDuration: 10

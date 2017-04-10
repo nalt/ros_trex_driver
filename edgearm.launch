@@ -1,0 +1,10 @@
+<launch>
+        <arg name="config_file" default="config-test.yaml" />
+        <arg name="use_roxterm" default="false" />
+        <arg name="prefix" default="" unless="$(arg use_roxterm)" />
+        <arg name="prefix" value="$(find rovi_edgearm_control)/run_tab.sh trex_driver $(find trex_driver)" if="$(arg use_roxterm)" />
+	
+	<node name="trex_driver" pkg="trex_driver" type="trex_driver.py" output="screen" launch-prefix="$(arg prefix)">
+		<rosparam command="load" file="$(find trex_driver)/$(arg config_file)" />
+	</node>
+</launch>
