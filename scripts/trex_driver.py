@@ -84,7 +84,7 @@ class PoluluTrex:
 		if self.is_open:
 			return True
 		try:
-			self.ser = serial.Serial(device, self.cfg['baud'], timeout = 0.2)
+			self.ser = serial.Serial(self.device, self.cfg['baud'], timeout = 0.2)
 			self.is_open = True
 			self.have_loggederr = False
 			# Init
@@ -155,7 +155,7 @@ def shutdown_hook():
 if __name__ == '__main__':
 	rospy.init_node('trex_driver', anonymous=False)
 	roscfg = RosConfig()
-	for device in roscfg.cfg["devices"]:
-		PoluluTrex(device, roscfg)
+	for dev in roscfg.cfg["devices"]:
+		PoluluTrex(dev, roscfg)
 	rospy.on_shutdown(shutdown_hook)
 	rospy.spin()
