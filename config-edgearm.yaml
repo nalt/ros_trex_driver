@@ -1,5 +1,5 @@
 baud: 115200
-devices: [ "/dev/ttyUSB0" ]
+devices: [ "/dev/ttyUSB1", "/dev/ttyUSB2" ]
 rate: 100
 
 Motor1PWMPrescaler: 3

@@ -6,8 +6,8 @@ from std_msgs.msg import Float64
 
 class RosConfig:
 	cfg = {
-		"devices": [ "/dev/ttyUSB0" ],
-		"baud": 19200,
+		"devices": [ "/dev/ttyUSB2" ],
+		"baud": 115200,
 		"rate": 10,
 		"scale_i": 0.040, # 40mA per unit, according to datasheet
 		#"param_pwm_prescaler1": 0,  # 
@@ -64,14 +64,15 @@ class PoluluTrex:
 	pub_cur = [None, None, None]
 
 	def __init__(self, device, config, index=0):
+
 		self.device = device
 		self.cfg = config.cfg
 		self.dev_params = config.dev_params
 		# Publisher and subscriber
 		self.pub_cur[0] = rospy.Publisher("~current%d" % (index+0), Float64, queue_size=10)
 		self.pub_cur[1] = rospy.Publisher("~current%d" % (index+1), Float64, queue_size=10)
-		self.sub_cmd0 = rospy.Subscriber("~command%d" % (index+0), Float64, self.cb_cmd, 0)
-		self.sub_cmd1 = rospy.Subscriber("~command%d" % (index+1), Float64, self.cb_cmd, 1)
+		self.sub_cmd0 = rospy.Subscriber("~command%d" % (index+0), Float64, self.cb_cmd, index+0)
+		self.sub_cmd1 = rospy.Subscriber("~command%d" % (index+1), Float64, self.cb_cmd, index+1)
 
 		# Open device
 		self.dev_open()
@@ -91,12 +92,14 @@ class PoluluTrex:
 			self.ser.write([0x81]) # CMD: get signature
 			sig = self.ser.read(9)
 			if sig[0:6] != "TReXJr":
+				rospy.logerr("Signature: %s" % sig[0:6])  
 				raise Exception("Incorrect signature")
 			self.ser.write([0x82]) # CMD: get mode
 			mode = self.ser.read(1)
 			if mode != 'a' and mode != 'r':
 				raise Exception("Incorrect mode (%c); change jumpers!" % (mode))
 			self.dev_config()
+			rospy.loginfo("Device opened: %s" % self.device)  
 		except Exception as e:
 			if not self.have_loggederr:
 				rospy.logerr("Open TReX failed: %s", e.message)
@@ -137,11 +140,11 @@ class PoluluTrex:
 		pwm = int(round(msg.data * 0x7f))
 		if pwm < -0x7f: pwm = 0x7f
 		if pwm >  0x7f: pwm = 0x7f
-		rospy.loginfo("Received command for %d: %f=%d" % (index, msg.data, pwm))
+		rospy.loginfo("Received command for command%d (%s): %f=%d" % (index, self.device, msg.data, pwm))
 		# Build Command
 		cmd = 0
-		if index == 0: cmd = 0xC0
-		if index == 1: cmd = 0xC8
+		if index%2==0: cmd = 0xC0
+		if index%2 == 1: cmd = 0xC8
 		if pwm >= 0: cmd += 2  # CMD: Forward
 		if pwm < 0: cmd += 1   # CMD: Reverse
 		self.ser.write([cmd, abs(pwm)])
@@ -155,7 +158,10 @@ def shutdown_hook():
 if __name__ == '__main__':
 	rospy.init_node('trex_driver', anonymous=False)
 	roscfg = RosConfig()
+	
+     	i=0
 	for dev in roscfg.cfg["devices"]:
-		PoluluTrex(dev, roscfg)
+		PoluluTrex(dev, roscfg,i)
+		i=i+2
 	rospy.on_shutdown(shutdown_hook)
 	rospy.spin()
