@@ -93,7 +93,7 @@ class PololuTrex:
 
         except Exception as e:
             if not self.have_loggederr:
-                rospy.logerr("Open TReX (%s) failed. Wrong device name? %s" % (self.device,e.message))
+                rospy.logerr("Open TReX (%s) failed. Wrong device name? %s" % (self.device, e.message))
                 #self.have_loggederr = True
             return False
 
@@ -120,18 +120,23 @@ class PololuTrex:
 
     def setPWM(self, motor,data):
         ''' Callback for command message '''
-        if not self.is_open: return          
-        pwm = int(round(data * 0x7f))
-        if pwm < -0x7f: pwm = 0x7f
-        if pwm >  0x7f: pwm = 0x7f
-
-        # Build Command
-        cmd = 0
-        if motor%2==0: cmd = 0xC0
-        if motor%2 == 1: cmd = 0xC8
-        if pwm >= 0: cmd += 2  # CMD: Forward
-        if pwm < 0: cmd += 1   # CMD: Reverse
-        self.ser.write([cmd, abs(pwm)])
+        if not self.is_open: return 0         
+        try:        
+            pwm = int(round(data * 0x7f))
+            if pwm < -0x7f: pwm = 0x7f
+            if pwm >  0x7f: pwm = 0x7f
+    
+            # Build Command
+            cmd = 0
+            if motor%2==0: cmd = 0xC0
+            if motor%2 == 1: cmd = 0xC8
+            if pwm >= 0: cmd += 2  # CMD: Forward
+            if pwm < 0: cmd += 1   # CMD: Reverse
+            self.ser.write([cmd, abs(pwm)])
+            return 1
+        except Exception as e:
+           rospy.logerr("Setting PWM %d (%s) failed: %s" % (motor, self.device, e.message))
+        return 0
 
         
     def getCurrents(self):
@@ -140,10 +145,12 @@ class PololuTrex:
             self.ser.write([0x8f]) # CMD: get motor currents
             curs = self.ser.read(2)
             if len(curs) != 2: return       
-            return ( float(ord(curs[0]))*self.cfg['scale_i'], float(ord(curs[1])) * self.cfg['scale_i'] )
+            return (1, float(ord(curs[0]))*self.cfg['scale_i'], float(ord(curs[1])) * self.cfg['scale_i'] )
         
         except Exception as e:
            rospy.logerr("Reading currents (%s) failed: %s" % (self.device,e.message))
+        return (0,0,0)
+
 
     def getCurrent(self, motor):
         if not self.is_open: return    
@@ -151,11 +158,11 @@ class PololuTrex:
             self.ser.write([0x8f]) # CMD: get motor currents
             curs = self.ser.read(2)
             if len(curs) != 2: return       
-            return float(ord(curs[motor%2]))*self.cfg['scale_i']
+            return (1,float(ord(curs[motor%2]))*self.cfg['scale_i'])
         
         except Exception as e:
            rospy.logerr("Reading current $d (%s) failed: %s" % (motor, self.device, e.message))
-
+        return (0,0)
 
 
 class PololuTrexNode:

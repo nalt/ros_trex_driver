@@ -33,8 +33,11 @@ class PololuTrexNode:
         self.mutex.acquire()
         try:    
             currents = self.trex.getCurrents()
-            self.pub_cur[0].publish(Float64(currents[0]))
-            self.pub_cur[1].publish(Float64(currents[1]))
+            if currents[0]:
+                self.pub_cur[0].publish(Float64(currents[1]))
+                self.pub_cur[1].publish(Float64(currents[2]))
+            else:
+                raise ValueError("Error while reading motor currents (%s)" % (self.device))
         except Exception as e:
                 rospy.logerr("Could not read motor currents: %s" % (e))
         finally:
