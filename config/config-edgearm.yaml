@@ -1,8 +1,7 @@
 baud: 115200
-devices: [ "/dev/ttyUSB1", "/dev/ttyUSB2" ]
-rate: 100
+devices: [ "/dev/robot/ttyTrex0" ]
+rate: 50
 
-Motor1PWMPrescaler: 3
-Motor2PWMPrescaler: 3
-
+#Motor1PWMPrescaler: 3
+#Motor2PWMPrescaler: 3
 #Motor1BrakeDuration: 10

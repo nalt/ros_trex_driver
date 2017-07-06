@@ -46,11 +46,13 @@ class RosConfigPololuTrex:
 		"ResetAllParameterstoFactoryDefaults": 0x7F,
 	}
 
-	def __init__(self):
+    ##
+    # @param ns Namespace to search the parameters in. If ns='test/', the name will be is '~test/<<parameterName>>'
+	def __init__(self,ns=""):
 		''' Checks for configuration parameters and writes corresponding values to device.
 		    Any of the keys in cfg can be used as a ROS parameter name. '''
 		for name in self.cfg.keys():
-			pn = '~' + name
+			pn = '~' + ns + name
 			if rospy.has_param(pn):
 				val = rospy.get_param(pn)
 				self.cfg[name] = val
@@ -75,6 +77,7 @@ class PololuTrex:
         if self.is_open:
             return True
         try:
+            rospy.loginfo("Trying to connect Trex on %s" % self.device)
             self.ser = serial.Serial(self.device, self.cfg['baud'], timeout=0.1, interCharTimeout=0.01)
             self.is_open = True
             self.have_loggederr = False
@@ -118,7 +121,7 @@ class PololuTrex:
 
 
 
-    def setPWM(self, motor,data):
+    def setPWM(self, data, motor=0):
         ''' Callback for command message '''
         if not self.is_open: return 0         
         try:        
@@ -144,7 +147,7 @@ class PololuTrex:
         try:
             self.ser.write([0x8f]) # CMD: get motor currents
             curs = self.ser.read(2)
-            if len(curs) != 2: return       
+            if len(curs) != 2: return (0,0,0)     
             return (1, float(ord(curs[0]))*self.cfg['scale_i'], float(ord(curs[1])) * self.cfg['scale_i'] )
         
         except Exception as e:
@@ -152,17 +155,24 @@ class PololuTrex:
         return (0,0,0)
 
 
-    def getCurrent(self, motor):
+    def getCurrent(self, motor=0):
         if not self.is_open: return    
         try:
             self.ser.write([0x8f]) # CMD: get motor currents
             curs = self.ser.read(2)
-            if len(curs) != 2: return       
+            if len(curs) != 2: return (0,0)       
             return (1,float(ord(curs[motor%2]))*self.cfg['scale_i'])
         
         except Exception as e:
            rospy.logerr("Reading current $d (%s) failed: %s" % (motor, self.device, e.message))
         return (0,0)
+        
+        
+    ## Stop all motors connected to the Roboclaw
+    def stopMotors(self):
+        if not self.is_open: return
+        self.setPWM(0.0,0)
+        self.setPWM(0.0,1)
 
 
 class PololuTrexNode:
