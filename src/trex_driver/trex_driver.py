@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import serial, time
+import serial
 import rospy
 from std_msgs.msg import Float64
 from threading import Lock
@@ -93,7 +93,7 @@ class PololuTrex:
 
         except Exception as e:
             if not self.have_loggederr:
-                rospy.logerr("Open TReX (%s) failed: %s" % (self.device,e.message))
+                rospy.logerr("Open TReX (%s) failed. Wrong device name? %s" % (self.device,e.message))
                 #self.have_loggederr = True
             return False
 
@@ -132,7 +132,6 @@ class PololuTrex:
         if pwm >= 0: cmd += 2  # CMD: Forward
         if pwm < 0: cmd += 1   # CMD: Reverse
         self.ser.write([cmd, abs(pwm)])
-        print "SET PWM"
 
         
     def getCurrents(self):
@@ -214,17 +213,4 @@ class PololuTrexNode:
             rate.sleep()
         
 
-def shutdown_hook():
-  print "shutdown time!"
 
-
-if __name__ == '__main__':
-	rospy.init_node('trex_driver', anonymous=False)
-	roscfg = RosConfigPololuTrex()
-	
-     	i=0
-	for dev in roscfg.cfg["devices"]:
-		PololuTrexNode(dev, roscfg,i)
-		i=i+2
-	rospy.on_shutdown(shutdown_hook)
-	rospy.spin()

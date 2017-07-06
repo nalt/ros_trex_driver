@@ -1,0 +1,3 @@
+baud: 115200
+devices: [ "/dev/robot/ttyTrex0" ]
+UARTSettings: 0x0a

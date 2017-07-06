@@ -1,0 +1,5 @@
+<launch>
+	<node name="trex_driver" pkg="trex_driver" type="trex_driver_node.py" output="screen">
+		<rosparam command="load" file="$(find trex_driver)/config/config-setup.yaml" />
+	</node>
+</launch>
