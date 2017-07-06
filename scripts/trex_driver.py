@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import serial, time
 import rospy
-from std_msgs.msg import String
 from std_msgs.msg import Float64
+from threading import Lock
 
 class RosConfigPololuTrex:
 	cfg = {
@@ -132,6 +132,7 @@ class PololuTrex:
         if pwm >= 0: cmd += 2  # CMD: Forward
         if pwm < 0: cmd += 1   # CMD: Reverse
         self.ser.write([cmd, abs(pwm)])
+        print "SET PWM"
 
         
     def getCurrents(self):
@@ -160,7 +161,6 @@ class PololuTrex:
 
 class PololuTrexNode:
     pub_cur = [None, None]
-    pwmValue = [None, None]
     
     def __init__(self, device, config, index=0):
         
@@ -174,29 +174,33 @@ class PololuTrexNode:
 
         # Trex Device
         self.trex = PololuTrex(device,config)
+        self.mutex = Lock()
         
         # Timer
         rospy.Timer(rospy.Duration(1.0 / self.cfg['rate']), self.cb_timer)
-        
-        #self.run()
+    
          
     def cb_timer(self, event):
-        
-        if self.pwmValue[0] is not None:
-                self.trex.setPWM(0,self.pwmValue[0])
-                #print "SET PWM 1 %f" % self.pwmValue[0]
-        if self.pwmValue[1] is not None:
-                self.trex.setPWM(1,self.pwmValue[1])
-        
-        currents = self.trex.getCurrent(0)
-        print currents
-        #self.pub_cur[0].publish(Float64(currents[0]))
-        #self.pub_cur[1].publish(Float64(currents[1]))
+        self.mutex.acquire()
+        try:    
+            currents = self.trex.getCurrents()
+            self.pub_cur[0].publish(Float64(currents[0]))
+            self.pub_cur[1].publish(Float64(currents[1]))
+        except Exception as e:
+                rospy.logerr("Could not read motor currents: %s" % (e))
+        finally:
+            self.mutex.release()
 
         
     def cb_cmd(self, msg, motor):
-        self.pwmValue[motor%2] = msg.data
-        rospy.loginfo("Received PWM command on command%d (%s): %f" % (motor, self.device, msg.data))
+        self.mutex.acquire()
+        try: 
+            self.trex.setPWM(motor%2, msg.data)
+            rospy.loginfo("Received PWM command on command%d (%s): %f" % (motor, self.device, msg.data))
+        except Exception as e:
+                rospy.logerr("Could not send motor command: %s" % (e))
+        finally:
+            self.mutex.release()
 
         
     def run(self):
