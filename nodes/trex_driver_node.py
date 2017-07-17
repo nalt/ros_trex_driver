@@ -8,6 +8,7 @@ from trex_driver import trex_driver as td
 class PololuTrexNode:
     pub_cur = [None, None]
     
+    ## Constructor for the ROS node
     def __init__(self, device, config, index=0):
         
         self.cfg = config.cfg
@@ -25,7 +26,7 @@ class PololuTrexNode:
         # Timer
         rospy.Timer(rospy.Duration(1.0 / self.cfg['rate']), self.cb_timer)
     
-         
+    ## Callback function for the timer to publish current values      
     def cb_timer(self, event):
         
         if not self.trex.is_open: return       
@@ -43,7 +44,8 @@ class PololuTrexNode:
         finally:
             self.mutex.release()
 
-        
+    ## Callback function for the subscribed command topic
+    # This function sends the desired PWM command to the Trex driver as soon as a new value was received         
     def cb_cmd(self, msg, motor):
         self.mutex.acquire()
         try: 
@@ -54,9 +56,9 @@ class PololuTrexNode:
         finally:
             self.mutex.release()
 
-        
+    ## Main function implementing a loop to set PWM values        
     def run(self):
-        rate = rospy.Rate(1)
+        rate = rospy.Rate(10)
         while not rospy.is_shutdown():
             if self.pwmValue[0] is not None:
                 self.trex.setPWM(0,self.pwmValue[0])

@@ -4,6 +4,7 @@ import rospy
 from std_msgs.msg import Float64
 from threading import Lock
 
+## Configuration class for the Pololu Trex motor driver
 class RosConfigPololuTrex:
 	cfg = {
 		"devices": [ "/dev/robot/ttyTrex0" ],
@@ -46,7 +47,8 @@ class RosConfigPololuTrex:
 		"ResetAllParameterstoFactoryDefaults": 0x7F,
 	}
 
-    ##
+    ## Constructor
+    # Checks the ROS parameter space if any of the value is set.
     # @param ns Namespace to search the parameters in. If ns='test/', the name will be is '~test/<<parameterName>>'
 	def __init__(self,ns=""):
 		''' Checks for configuration parameters and writes corresponding values to device.
@@ -59,11 +61,14 @@ class RosConfigPololuTrex:
 				rospy.loginfo("Parameter %s=%s" % (name, str(val)))
 
 
-
+## Serial communication with the Pololu Trex motor driver
 class PololuTrex:
     is_open = False
     have_loggederr = False
 
+    ## Constructor
+    # @param device String describing the device name (e.g. /dev/ttyUSB0)
+    # @param config Config object of class RosConfigPololuTrex
     def __init__(self, device, config):
 
         self.device = device
@@ -72,6 +77,7 @@ class PololuTrex:
         # Open device
         self.dev_open()
 
+    ## Opens the serial connection to the device and sets the device config options
     def dev_open(self):
         ''' Opens and configures the TReX device '''
         if self.is_open:
@@ -103,7 +109,8 @@ class PololuTrex:
         rospy.loginfo("TReX device opened.")
         return True
 
-
+    
+    ## Load and set the device configuration
     def dev_config(self):
 		''' UNFINISHED '''
 		# Go through all device parameters...
@@ -120,7 +127,9 @@ class PololuTrex:
 				rospy.loginfo("Device Parameter %s (0x%02x)=%d: %s" % (name, param_id, val, "OK" if ok else "FAIL"))
 
 
-
+    ## Set the PWM for the defined motor
+    # @param data The PWM value to be set (from -1.0 to 1.0)
+    # @return Returns Success (0/1)
     def setPWM(self, data, motor=0):
         ''' Callback for command message '''
         if not self.is_open: return 0         
@@ -141,7 +150,8 @@ class PololuTrex:
            rospy.logerr("Setting PWM %d (%s) failed: %s" % (motor, self.device, e.message))
         return 0
 
-        
+    ## Read the current for both motors
+    # @return Returns the list: ( Success (0/1), current value motor 1 in A, current value motor 2 in A )    
     def getCurrents(self):
         if not self.is_open: return    
         try:
@@ -154,7 +164,10 @@ class PololuTrex:
            rospy.logerr("Reading currents (%s) failed: %s" % (self.device,e.message))
         return (0,0,0)
 
-
+    
+    ## Read the current for the defined motor
+    # @param motor The motor to read from (0 or 1)
+    # @return Returns the list: ( Success (0/1), current value in A )
     def getCurrent(self, motor=0):
         if not self.is_open: return    
         try:
@@ -175,59 +188,62 @@ class PololuTrex:
         self.setPWM(0.0,1)
 
 
-class PololuTrexNode:
-    pub_cur = [None, None]
-    
-    def __init__(self, device, config, index=0):
-        
-        self.cfg = config.cfg
-        self.device = device
-        # Publisher and subscriber
-        self.pub_cur[0] = rospy.Publisher("~current%d" % (index+0), Float64, queue_size=10)
-        self.pub_cur[1] = rospy.Publisher("~current%d" % (index+1), Float64, queue_size=10)
-        self.sub_cmd0 = rospy.Subscriber("~command%d" % (index+0), Float64, self.cb_cmd, index+0)
-        self.sub_cmd1 = rospy.Subscriber("~command%d" % (index+1), Float64, self.cb_cmd, index+1)
-
-        # Trex Device
-        self.trex = PololuTrex(device,config)
-        self.mutex = Lock()
-        
-        # Timer
-        rospy.Timer(rospy.Duration(1.0 / self.cfg['rate']), self.cb_timer)
-    
-         
-    def cb_timer(self, event):
-        self.mutex.acquire()
-        try:    
-            currents = self.trex.getCurrents()
-            self.pub_cur[0].publish(Float64(currents[0]))
-            self.pub_cur[1].publish(Float64(currents[1]))
-        except Exception as e:
-                rospy.logerr("Could not read motor currents: %s" % (e))
-        finally:
-            self.mutex.release()
-
-        
-    def cb_cmd(self, msg, motor):
-        self.mutex.acquire()
-        try: 
-            self.trex.setPWM(motor%2, msg.data)
-            rospy.loginfo("Received PWM command on command%d (%s): %f" % (motor, self.device, msg.data))
-        except Exception as e:
-                rospy.logerr("Could not send motor command: %s" % (e))
-        finally:
-            self.mutex.release()
-
-        
-    def run(self):
-        rate = rospy.Rate(1)
-        while not rospy.is_shutdown():
-            if self.pwmValue[0] is not None:
-                self.trex.setPWM(0,self.pwmValue[0])
-                print "SET PWM 1 %f" % self.pwmValue[0]
-            if self.pwmValue[1] is not None:
-                self.trex.setPWM(1,self.pwmValue[1])
-            rate.sleep()
-        
-
-
+# ROS node for the Pololu Trex motor driver
+#class PololuTrexNode:
+#    pub_cur = [None, None]
+#    
+#    ## Constructor for the ROS node
+#    def __init__(self, device, config, index=0):
+#        
+#        self.cfg = config.cfg
+#        self.device = device
+#        # Publisher and subscriber
+#        self.pub_cur[0] = rospy.Publisher("~current%d" % (index+0), Float64, queue_size=10)
+#        self.pub_cur[1] = rospy.Publisher("~current%d" % (index+1), Float64, queue_size=10)
+#        self.sub_cmd0 = rospy.Subscriber("~command%d" % (index+0), Float64, self.cb_cmd, index+0)
+#        self.sub_cmd1 = rospy.Subscriber("~command%d" % (index+1), Float64, self.cb_cmd, index+1)
+#
+#        # Trex Device
+#        self.trex = PololuTrex(device,config)
+#        self.mutex = Lock()
+#        
+#        # Timer
+#        rospy.Timer(rospy.Duration(1.0 / self.cfg['rate']), self.cb_timer)
+#    
+#    ## Callback function for the timer   
+#    def cb_timer(self, event):
+#        self.mutex.acquire()
+#        try:    
+#            currents = self.trex.getCurrents()
+#            self.pub_cur[0].publish(Float64(currents[0]))
+#            self.pub_cur[1].publish(Float64(currents[1]))
+#        except Exception as e:
+#                rospy.logerr("Could not read motor currents: %s" % (e))
+#        finally:
+#            self.mutex.release()
+#
+#    ## Callback function for the subscribed command topic
+#    # This function send the desired PWM command to the Trex driver as soon as a new value was received    
+#    def cb_cmd(self, msg, motor):
+#        self.mutex.acquire()
+#        try: 
+#            self.trex.setPWM(motor%2, msg.data)
+#            rospy.loginfo("Received PWM command on command%d (%s): %f" % (motor, self.device, msg.data))
+#        except Exception as e:
+#                rospy.logerr("Could not send motor command: %s" % (e))
+#        finally:
+#            self.mutex.release()
+#
+#    ## Main function implementing a loop to set PWM values    
+#    def run(self):
+#        rate = rospy.Rate(1)
+#        while not rospy.is_shutdown():
+#            if self.pwmValue[0] is not None:
+#                self.trex.setPWM(0,self.pwmValue[0])
+#                print "SET PWM 1 %f" % self.pwmValue[0]
+#            if self.pwmValue[1] is not None:
+#                self.trex.setPWM(1,self.pwmValue[1])
+#            rate.sleep()
+#        
+#
+#
