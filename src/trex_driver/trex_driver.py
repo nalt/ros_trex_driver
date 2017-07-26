@@ -171,15 +171,37 @@ class PololuTrex:
     def getCurrent(self, motor=0):
         if not self.is_open: return    
         try:
-            self.ser.write([0x8f]) # CMD: get motor currents
+            self.ser.write([0x84]) # CMD: get motor currents
             curs = self.ser.read(2)
             if len(curs) != 2: return (0,0)       
             return (1,float(ord(curs[motor%2]))*self.cfg['scale_i'])
         
         except Exception as e:
-           rospy.logerr("Reading current $d (%s) failed: %s" % (motor, self.device, e.message))
+           rospy.logerr("Reading current %d (%s) failed: %s" % (motor, self.device, e.message))
         return (0,0)
+    
+    ## Read the Status of the Trex driver
+    def getStatus(self):
+        if not self.is_open: return
+        try:
+            self.ser.write([0x8f]) # CMD: get status byte
+            status = self.ser.read(1)
+            if len(status) != 1: return (0,0,"Communication error")
+            status = ord(status)
+            error =  "No error"
+            if status == 1: error = "UART error"
+            elif status == 16: error = "Motor 1 fault"
+            elif status == 32: error = "Motor 1 over current"
+            elif status == 64: error = "Motor 1 fault"
+            elif status == 128: error = "Motor 2 over current"
+            
+            return (1,status,error)
         
+        except Exception as e:
+           rospy.logerr("Reading status (%s) failed: %s" % (self.device, e.message))
+        return (0,0,"Device not open")
+        
+   
         
     ## Stop all motors connected to the Roboclaw
     def stopMotors(self):
