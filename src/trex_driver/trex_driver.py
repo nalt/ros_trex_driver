@@ -6,16 +6,16 @@ from threading import Lock
 
 ## Configuration class for the Pololu Trex motor driver
 class RosConfigPololuTrex:
-	cfg = {
+    cfg = {
 		"devices": [ "/dev/robot/ttyTrex0" ],
 		"baud": 115200,
 		"rate": 50,
 		"scale_i": 0.040, # 40mA per unit, according to datasheet
 		#"param_pwm_prescaler1": 0,  # 
 		#"param_pwm_prescaler2": 3,  # 
-	}
+    }
 
-	dev_params = {
+    dev_params = {
 		"DeviceNumber": 0x00,
 		"RequiredChannels": 0x01,
 		"IgnoredChannels": 0x02,
@@ -45,20 +45,29 @@ class RosConfigPololuTrex:
 		"CRC7Polynomial": 0x7D,
 		"UARTSettings": 0x7E,
 		"ResetAllParameterstoFactoryDefaults": 0x7F,
-	}
+    }
+ 
+    dev_params_values = {}
+ 
 
     ## Constructor
     # Checks the ROS parameter space if any of the value is set.
     # @param ns Namespace to search the parameters in. If ns='test/', the name will be is '~test/<<parameterName>>'
-	def __init__(self,ns=""):
-		''' Checks for configuration parameters and writes corresponding values to device.
-		    Any of the keys in cfg can be used as a ROS parameter name. '''
-		for name in self.cfg.keys():
-			pn = '~' + ns + name
-			if rospy.has_param(pn):
-				val = rospy.get_param(pn)
-				self.cfg[name] = val
-				rospy.loginfo("Parameter %s=%s" % (name, str(val)))
+    def __init__(self,ns=""):
+        ''' Checks for configuration parameters and writes corresponding values to device.
+        Any of the keys in cfg can be used as a ROS parameter name. '''
+        for name in self.cfg.keys():
+            pn = '~' + ns + name
+            if rospy.has_param(pn):
+                val = rospy.get_param(pn)
+                self.cfg[name] = val
+                rospy.loginfo("Parameter %s=%s" % (name, str(val)))
+        for name in self.dev_params.keys():
+            pn = '~' + ns + name
+            if rospy.has_param(pn):
+                val = rospy.get_param(pn)
+                self.dev_params_values[name] = val
+                rospy.loginfo("Device parameter %s=%s" % (name, str(val)))
 
 
 ## Serial communication with the Pololu Trex motor driver
@@ -74,6 +83,7 @@ class PololuTrex:
         self.device = device
         self.cfg = config.cfg
         self.dev_params = config.dev_params
+        self.dev_params_values = config.dev_params_values
         # Open device
         self.dev_open()
 
@@ -97,35 +107,40 @@ class PololuTrex:
             mode = self.ser.read(1)
             if mode != 'a' and mode != 'r':
                 raise Exception("Incorrect mode (%c); change jumpers!" % (mode))
-            self.dev_config()
+            
+            # Start the device configuration            
+            self.dev_config()  
+            
             rospy.loginfo("Device opened: %s" % self.device)  
 
         except Exception as e:
             if not self.have_loggederr:
-                rospy.logerr("Open TReX (%s) failed. Wrong device name? %s" % (self.device, e.message))
+                rospy.logerr("Open TReX (%s) failed. Wrong device name? Error: %s" % (self.device, e.message))
                 #self.have_loggederr = True
             return False
 
-        rospy.loginfo("TReX device opened.")
+        rospy.loginfo("TReX device configuration finished.")
         return True
 
     
     ## Load and set the device configuration
     def dev_config(self):
-		''' UNFINISHED '''
-		# Go through all device parameters...
-		for name in self.dev_params.keys():
-			pn = '~' + name 
-			# ... and check for ROS parameter
-			if rospy.has_param(pn):
-				param_id = self.dev_params[name]
-				val = int(rospy.get_param(pn)) & 0x7f
-				# Send to device
-				self.ser.write([0xAF, param_id, val, 0x55, 0x2A]) # Cmd: Set parameter (0xAF)
-				data = self.ser.read(1)
-				ok = ord(data) == 0
-				rospy.loginfo("Device Parameter %s (0x%02x)=%d: %s" % (name, param_id, val, "OK" if ok else "FAIL"))
+        print self.dev_params_values
+        # Go through all device parameters...
+        for name in self.dev_params_values.keys():
+            param_id = self.dev_params[name]
+            val = self.dev_params_values[name] & 0xff
+            # Send to device
+            self.ser.write([0xAF, param_id, val, 0x55, 0x2A]) # Cmd: Set parameter (0xAF)
+            data = self.ser.read(1)
+            ok = ord(data) == 0
+            if ok:
+                rospy.loginfo("Device parameter %s (0x%02x)=%d: OK" % (name, param_id, val))
+            else:
+                rospy.logerr("Device parameter %s (0x%02x)=%d: FAILED" % (name, param_id, val))
+            
 
+         
 
     ## Set the PWM for the defined motor
     # @param data The PWM value to be set (from -1.0 to 1.0)
@@ -208,64 +223,3 @@ class PololuTrex:
         if not self.is_open: return
         self.setPWM(0.0,0)
         self.setPWM(0.0,1)
-
-
-# ROS node for the Pololu Trex motor driver
-#class PololuTrexNode:
-#    pub_cur = [None, None]
-#    
-#    ## Constructor for the ROS node
-#    def __init__(self, device, config, index=0):
-#        
-#        self.cfg = config.cfg
-#        self.device = device
-#        # Publisher and subscriber
-#        self.pub_cur[0] = rospy.Publisher("~current%d" % (index+0), Float64, queue_size=10)
-#        self.pub_cur[1] = rospy.Publisher("~current%d" % (index+1), Float64, queue_size=10)
-#        self.sub_cmd0 = rospy.Subscriber("~command%d" % (index+0), Float64, self.cb_cmd, index+0)
-#        self.sub_cmd1 = rospy.Subscriber("~command%d" % (index+1), Float64, self.cb_cmd, index+1)
-#
-#        # Trex Device
-#        self.trex = PololuTrex(device,config)
-#        self.mutex = Lock()
-#        
-#        # Timer
-#        rospy.Timer(rospy.Duration(1.0 / self.cfg['rate']), self.cb_timer)
-#    
-#    ## Callback function for the timer   
-#    def cb_timer(self, event):
-#        self.mutex.acquire()
-#        try:    
-#            currents = self.trex.getCurrents()
-#            self.pub_cur[0].publish(Float64(currents[0]))
-#            self.pub_cur[1].publish(Float64(currents[1]))
-#        except Exception as e:
-#                rospy.logerr("Could not read motor currents: %s" % (e))
-#        finally:
-#            self.mutex.release()
-#
-#    ## Callback function for the subscribed command topic
-#    # This function send the desired PWM command to the Trex driver as soon as a new value was received    
-#    def cb_cmd(self, msg, motor):
-#        self.mutex.acquire()
-#        try: 
-#            self.trex.setPWM(motor%2, msg.data)
-#            rospy.loginfo("Received PWM command on command%d (%s): %f" % (motor, self.device, msg.data))
-#        except Exception as e:
-#                rospy.logerr("Could not send motor command: %s" % (e))
-#        finally:
-#            self.mutex.release()
-#
-#    ## Main function implementing a loop to set PWM values    
-#    def run(self):
-#        rate = rospy.Rate(1)
-#        while not rospy.is_shutdown():
-#            if self.pwmValue[0] is not None:
-#                self.trex.setPWM(0,self.pwmValue[0])
-#                print "SET PWM 1 %f" % self.pwmValue[0]
-#            if self.pwmValue[1] is not None:
-#                self.trex.setPWM(1,self.pwmValue[1])
-#            rate.sleep()
-#        
-#
-#
