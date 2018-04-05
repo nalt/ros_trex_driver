@@ -1,4 +1,5 @@
 <launch>
+    <todo msg="Replace run_tab by rovi_common/run-in-tab" />
         <arg name="config_file" default="config/config-test.yaml" />
         <arg name="use_roxterm" default="false" />
         <arg name="prefix" default="" unless="$(arg use_roxterm)" />
